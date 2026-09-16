@@ -1,6 +1,8 @@
 # BDCoderAI IDE - installer packaging from existing compile artifact
 # Creator: Jamil | Team: BDCoderAI
 # Reuses the "vscode" artifact from run 35107900520 (compile done) - skips 45min compile.
+# Mirrors the real VSCodium CI flow: prepare_vscode.sh (rebrand/iss/includes) then
+# build/windows/package.sh (mixin/min-packing/cli) then prepare_assets.sh (iss compile -> assets/*.exe)
 
 name: BDCoderAI Package Installer
 
@@ -26,12 +28,19 @@ jobs:
         shell: bash
     env:
       VSCODE_ARCH: 'x64'
+      CI_BUILD: yes
       BUILD_SOURCEVERSION: f0c34bfaf48230bb6b3330f1f33ec7ec17a6d003
       MS_COMMIT: 08d4889f9ec4a1685d257b9b95de036c8e1ce1e5
       MS_TAG: '1.135.0'
       RELEASE_VERSION: 1.135.06229
+      SHOULD_BUILD_ZIP: no
+      SHOULD_BUILD_EXE_SYS: yes
+      SHOULD_BUILD_EXE_USR: no
+      SHOULD_BUILD_MSI: no
+      SHOULD_BUILD_MSI_NOUP: no
       SHOULD_BUILD_REH: no
       SHOULD_BUILD_REH_WEB: no
+      SHOULD_BUILD_CLI: no
 
     steps:
       - uses: actions/checkout@v4
@@ -58,22 +67,24 @@ jobs:
       - name: Extract vscode artifact
         run: tar -xzf vscode.tar.gz
 
-      - name: Build installer
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHOULD_BUILD_ZIP: no
-          SHOULD_BUILD_EXE_SYS: yes
-          SHOULD_BUILD_EXE_USR: no
-          SHOULD_BUILD_MSI: no
-          SHOULD_BUILD_MSI_NOUP: no
-          npm_config_arch: x64
-          npm_config_target_arch: x64
-        run: ./build/windows/package.sh
-
-      - name: Collect assets
+      # Re-create the rebranded/patched source tree (iss, includes/vscodium-variables.wxi, icons, etc.)
+      - name: Prepare vscode (rebrand + iss + includes)
         run: |
-          ./prepare_assets.sh
-          ls -la assets
+          . version.sh
+          . prepare_vscode.sh
+
+      # Package: mixin npm, rtf, policies, min-packing (no compile of TS needed - artifact has it)
+      - name: Build installer
+        run: |
+          npm_config_arch=x64 npm_config_target_arch=x64 ./build/windows/package.sh
+
+      # Compile Inno Setup scripts -> assets/*.exe
+      - name: Compile installer assets
+        run: |
+          ./build/windows/prepare_assets.sh
+
+      - name: List assets
+        run: ls -la assets
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
@@ -81,3 +92,4 @@ jobs:
           name: BDCoderAI-Setup-x64
           path: assets/
           retention-days: 7
+
