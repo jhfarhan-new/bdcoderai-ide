@@ -1,5 +1,9 @@
 {
   "//": "BDCoderAI IDE rebrand (creator: Jamil, team: BDCoderAI) — ei block er values prepare_vscode.sh er sob hardcoded value ke OVERRIDE kore (jq deep-merge, line ~126)",
+  "companyName": "Jamil (BDCoderAI)",
+  "publisher": "bdcoderai",
+  "copyright": "Copyright (C) 2026 Jamil - BDCoderAI Team. All rights reserved.",
+  "licenseName": "Proprietary",
   "nameShort": "BDCoderAI",
   "nameLong": "BDCoderAI",
   "applicationName": "bdcoderai",

@@ -91,6 +91,33 @@ jobs:
         run: |
           npm_config_arch=x64 npm_config_target_arch=x64 ./build/windows/package.sh
 
+      # GUARANTEED built-in injection: after min-packing the app tree is fully assembled,
+      # so we drop our chat extension straight into resources/app/extensions/. VS Code scans
+      # this folder at startup and auto-loads every subfolder as a built-in extension.
+      - name: Inject BDCoderAI built-in chat extension into app tree
+        run: |
+          set -e
+          APPEXT=""
+          for cand in \
+            "VSCode-win32-x64/resources/app/extensions" \
+            "vscode/.build/win32-x64/VSCode-win32-x64/resources/app/extensions" \
+            "vscode/.build/win32-x64/resources/app/extensions" ; do
+            if [ -d "$cand" ]; then APPEXT="$cand"; break; fi
+          done
+          echo "App extensions dir: ${APPEXT:-NOT FOUND}"
+          if [ -z "$APPEXT" ]; then
+            echo "Searching for app extensions dir..."; find . -type d -path '*resources/app/extensions' 2>/dev/null | head -5
+            APPEXT="$(find . -type d -path '*resources/app/extensions' 2>/dev/null | head -1)"
+          fi
+          [ -n "$APPEXT" ] || { echo 'FATAL: app extensions dir not found'; exit 1; }
+          rm -rf "$APPEXT/bdcoderai"
+          mkdir -p "$APPEXT/bdcoderai"
+          cp -rf bdcoderai-extension/. "$APPEXT/bdcoderai/"
+          rm -rf "$APPEXT/bdcoderai/tmp-protoc" "$APPEXT/bdcoderai/node_modules" || true
+          echo "--- injected files ---"; ls -la "$APPEXT/bdcoderai" | head -20
+          node -e "const p=require('./$APPEXT/bdcoderai/package.json'); console.log('INJECTED:', p.publisher+'.'+p.name, 'main='+p.main, 'activation='+JSON.stringify(p.activationEvents))"
+          echo "--- verify present ---"; test -d "$APPEXT/bdcoderai" && echo "OK: builtin chat extension embedded"
+
       # Compile Inno Setup scripts -> assets/*.exe
       - name: Compile installer assets
         run: |

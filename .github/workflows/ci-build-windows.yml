@@ -77,6 +77,22 @@ jobs:
           SHOULD_BUILD_REH_WEB: no
         run: ./build.sh
 
+      - name: Inject BDCoderAI built-in extension (after build)
+        run: |
+          set -e
+          # Inject AFTER build.sh/gulp so the compiler never touches/wipes our prebuilt extension.
+          # VS Code's package step copies built-in extensions from .build/extensions/<name>.
+          mkdir -p vscode/extensions/bdcoderai vscode/.build/extensions/bdcoderai
+          cp -rf bdcoderai-extension/. vscode/extensions/bdcoderai/
+          cp -rf bdcoderai-extension/. vscode/.build/extensions/bdcoderai/
+          # drop dev-only artifacts, keep shipped files
+          for d in vscode/extensions/bdcoderai vscode/.build/extensions/bdcoderai; do
+            rm -rf "$d/tmp-protoc" "$d/node_modules" || true
+          done
+          echo "--- source extension ---"; ls -la vscode/extensions/bdcoderai/
+          echo "--- compiled extension out ---"; ls -la vscode/.build/extensions/bdcoderai/
+          node -e "const p=require('./vscode/extensions/bdcoderai/package.json'); console.log('ext:', p.publisher, p.name, p.main, p.activationEvents)"
+
       - name: Compress vscode artifact
         run: |
           find vscode -type f -not -path "*/node_modules/*" -not -path "vscode/.build/node/*" -not -path "vscode/.git/*" > vscode.txt
