@@ -94,6 +94,7 @@ jobs:
       # Compile Inno Setup scripts -> assets/*.exe
       - name: Compile installer assets
         run: |
+          mkdir -p assets
           ./build/windows/prepare_assets.sh
 
       - name: List assets
