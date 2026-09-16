@@ -68,13 +68,26 @@ jobs:
         run: tar -xzf vscode.tar.gz
 
       # Re-create the rebranded/patched source tree (iss, includes/vscodium-variables.wxi, icons, etc.)
-      - name: Prepare vscode (rebrand + iss + includes)
+      - name: Repair Inno/MSI include files
         run: |
-          . version.sh
-          . prepare_vscode.sh
+          set -e
+          # The compile artifact was produced by build.sh which already ran prepare_vscode.sh,
+          # so vscode/ source already carries the BDCoderAI rebrand. Re-running prepare_vscode.sh
+          # would fail (patches already applied). We only ensure the Inno Setup include exists.
+          mkdir -p vscode/build/win32/includes
+          if [ ! -f vscode/build/win32/includes/vscodium-variables.wxi ]; then
+            cp -f build/windows/msi/includes/vscodium-variables.wxi vscode/build/win32/includes/vscodium-variables.wxi
+          fi
+          # substitute a stable upgrade code so upgrades behave (any fixed GUID works)
+          sed -i 's|{@@PRODUCT_UPGRADE_CODE@@}|{8F1B0A31-9C2D-4E77-A5B6-2D3C41E9F001}|g' vscode/build/win32/includes/vscodium-variables.wxi || true
+          ls -la vscode/build/win32/includes/
 
       # Package: mixin npm, rtf, policies, min-packing (no compile of TS needed - artifact has it)
       - name: Build installer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm_config_arch: x64
+          npm_config_target_arch: x64
         run: |
           npm_config_arch=x64 npm_config_target_arch=x64 ./build/windows/package.sh
 
