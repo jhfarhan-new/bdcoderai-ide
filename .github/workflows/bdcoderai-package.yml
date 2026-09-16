@@ -1,0 +1,83 @@
+# BDCoderAI IDE - installer packaging from existing compile artifact
+# Creator: Jamil | Team: BDCoderAI
+# Reuses the "vscode" artifact from run 35107900520 (compile done) - skips 45min compile.
+
+name: BDCoderAI Package Installer
+
+on:
+  workflow_dispatch:
+
+env:
+  APP_NAME: BDCoderAI
+  BINARY_NAME: bdcoderai
+  GH_REPO_PATH: ${{ github.repository }}
+  ORG_NAME: ${{ github.repository_owner }}
+  OS_NAME: windows
+  VSCODE_QUALITY: stable
+  DISABLE_UPDATE: yes
+
+permissions: {}
+
+jobs:
+  package:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    env:
+      VSCODE_ARCH: 'x64'
+      BUILD_SOURCEVERSION: f0c34bfaf48230bb6b3330f1f33ec7ec17a6d003
+      MS_COMMIT: 08d4889f9ec4a1685d257b9b95de036c8e1ce1e5
+      MS_TAG: '1.135.0'
+      RELEASE_VERSION: 1.135.06229
+      SHOULD_BUILD_REH: no
+      SHOULD_BUILD_REH_WEB: no
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Setup Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download compile artifact from previous run
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode
+          run-id: 35107900520
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract vscode artifact
+        run: tar -xzf vscode.tar.gz
+
+      - name: Build installer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHOULD_BUILD_ZIP: no
+          SHOULD_BUILD_EXE_SYS: yes
+          SHOULD_BUILD_EXE_USR: no
+          SHOULD_BUILD_MSI: no
+          SHOULD_BUILD_MSI_NOUP: no
+          npm_config_arch: x64
+          npm_config_target_arch: x64
+        run: ./build/windows/package.sh
+
+      - name: Collect assets
+        run: |
+          ./prepare_assets.sh
+          ls -la assets
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: BDCoderAI-Setup-x64
+          path: assets/
+          retention-days: 7
