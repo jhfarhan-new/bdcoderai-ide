@@ -116,6 +116,16 @@ jobs:
       - name: Extract vscode artifact
         run: tar -xzf vscode.tar.gz
 
+      - name: Repair Inno/MSI include files
+        run: |
+          set -e
+          mkdir -p vscode/build/win32/includes
+          if [ ! -f vscode/build/win32/includes/vscodium-variables.wxi ]; then
+            cp -f build/windows/msi/includes/vscodium-variables.wxi vscode/build/win32/includes/vscodium-variables.wxi
+          fi
+          sed -i 's|{@@PRODUCT_UPGRADE_CODE@@}|{8F1B0A31-9C2D-4E77-A5B6-2D3C41E9F001}|g' vscode/build/win32/includes/vscodium-variables.wxi || true
+          ls -la vscode/build/win32/includes/
+
       - name: Build installer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -127,6 +137,44 @@ jobs:
           npm_config_arch: x64
           npm_config_target_arch: x64
         run: ./build/windows/package.sh
+
+      # Safety net: guarantee the built-in BDCoderAI chat extension is present in the
+      # packaged app tree (min-packing may not include post-compile injected extensions).
+      - name: Ensure BDCoderAI extension in app tree
+        run: |
+          set -e
+          APP="VSCode-win32-x64/resources/app"
+          if [ -d "$APP" ]; then
+            mkdir -p "$APP/extensions"
+            rm -rf "$APP/extensions/bdcoderai"
+            cp -r bdcoderai-extension "$APP/extensions/bdcoderai"
+            echo "--- extension-injected ---"
+            ls "$APP/extensions/bdcoderai"
+            echo "--- webview-ui/build ---"
+            ls -la "$APP/extensions/bdcoderai/webview-ui/build" || true
+            echo "--- webview-ui/build/assets ---"
+            ls -la "$APP/extensions/bdcoderai/webview-ui/build/assets" || true
+          else
+            echo "App tree not found at $APP"; ls -la; exit 0
+          fi
+
+      # Re-run just the packaging of the installer after injecting the extension.
+      - name: Repackage installer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHOULD_BUILD_ZIP: no
+          SHOULD_BUILD_EXE_SYS: yes
+          SHOULD_BUILD_EXE_USR: no
+          SHOULD_BUILD_MSI: no
+          SHOULD_BUILD_MSI_NOUP: no
+          npm_config_arch: x64
+          npm_config_target_arch: x64
+        run: |
+          mkdir -p assets
+          ./build/windows/prepare_assets.sh
+
+      - name: List assets
+        run: ls -la assets
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
